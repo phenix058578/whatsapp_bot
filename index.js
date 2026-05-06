@@ -2,45 +2,23 @@ import makeWASocket, { useMultiFileAuthState, DisconnectReason } from "@whiskeys
 import qrcode from "qrcode-terminal";
 import Groq from "groq-sdk";
 
-// Initialisation de l'IA Groq
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY, // La clé sera mise dans Render
-});
-
-// Fonction IA
-async function askGroq(question) {
-    try {
-        const response = await groq.chat.completions.create({
-            model: "llama3-70b-8192",
-            messages: [
-                { role: "system", content: "Tu es une IA utile, claire et intelligente." },
-                { role: "user", content: question }
-            ],
-            temperature: 0.7,
-        });
-
-        return response.choices[0].message.content;
-    } catch (err) {
-        console.error("Erreur IA :", err);
-        return "❌ Erreur avec l'IA Groq.";
-    }
-}
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState("./auth");
+    const { state, saveCreds } = await useMultiFileAuthState("auth");
 
     const sock = makeWASocket({
+        printQRInTerminal: true, // 🔥 IMPORTANT POUR RENDER
         auth: state,
-        printQRInTerminal: false,
+        browser: ["Mac OS", "Chrome", "14.4.1"]
     });
 
-    sock.ev.on("connection.update", (update) => {
-        const { connection, lastDisconnect, qr } = update;
+    sock.ev.on("creds.update", saveCreds);
 
+    sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
         if (qr) {
-            console.clear();
-            console.log("📌 SCANNE CE QR CODE AVEC TON TÉLÉPHONE :\n");
-            qrcode.generate(qr, { small: false });
+            console.log("📌 QR CODE :");
+            qrcode.generate(qr, { small: true });
         }
 
         if (connection === "close") {
@@ -49,31 +27,32 @@ async function startBot() {
                 console.log("🔄 Reconnexion…");
                 startBot();
             } else {
-                console.log("❌ Déconnecté. Supprime le dossier auth et relance.");
+                console.log("❌ Déconnecté. Scan le QR à nouveau.");
             }
         }
 
         if (connection === "open") {
-            console.log("✅ Bot connecté !");
+            console.log("✅ Bot connecté à WhatsApp !");
         }
     });
 
-    sock.ev.on("creds.update", saveCreds);
-
-    // Réponses IA
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0];
         if (!msg.message || msg.key.fromMe) return;
 
-        const from = msg.key.remoteJid;
-        const text =
-            msg.message.conversation ||
-            msg.message.extendedTextMessage?.text ||
-            "";
+        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        if (!text) return;
 
-        if (text.length > 0) {
-            const reply = await askGroq(text);
-            await sock.sendMessage(from, { text: reply });
+        try {
+            const response = await groq.chat.completions.create({
+                model: "llama3-8b-8192",
+                messages: [{ role: "user", content: text }]
+            });
+
+            const reply = response.choices[0].message.content;
+            await sock.sendMessage(msg.key.remoteJid, { text: reply });
+        } catch (err) {
+            console.error("Erreur IA :", err);
         }
     });
 }
