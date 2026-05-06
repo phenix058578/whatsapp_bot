@@ -8,7 +8,6 @@ async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("auth");
 
     const sock = makeWASocket({
-        printQRInTerminal: true, // 🔥 IMPORTANT POUR RENDER
         auth: state,
         browser: ["Mac OS", "Chrome", "14.4.1"]
     });
@@ -17,7 +16,7 @@ async function startBot() {
 
     sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
         if (qr) {
-            console.log("📌 QR CODE :");
+            console.log("📌 QR CODE À SCANNER :");
             qrcode.generate(qr, { small: true });
         }
 
@@ -27,7 +26,7 @@ async function startBot() {
                 console.log("🔄 Reconnexion…");
                 startBot();
             } else {
-                console.log("❌ Déconnecté. Scan le QR à nouveau.");
+                console.log("❌ Session expirée. Rescanne le QR.");
             }
         }
 
