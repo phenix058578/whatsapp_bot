@@ -5,7 +5,8 @@ import Groq from "groq-sdk";
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState("auth");
+   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
+
 
     const sock = makeWASocket({
         auth: state,
